@@ -1,8 +1,7 @@
+
+https://www.printables.com/model/810472-agopengps-steer-gear
+
 Librarys:
-
- https://github.com/tzapu/WiFiManager
-
- https://github.com/pfeerick/elapsedMillis
 
  https://github.com/adafruit/Adafruit_BNO08x
 
