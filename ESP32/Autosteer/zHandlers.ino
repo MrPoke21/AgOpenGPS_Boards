@@ -97,6 +97,7 @@ void GGA_Handler()  //Rec'd GGA
 
 void gpsStream() {
   while (Serial2.available()) {
+    //Serial.print(Serial2.read());
     parser << Serial2.read();
   }
 }
@@ -236,7 +237,7 @@ void buildnmeaPGN() {
   //imuYawRate[
   //nmeaData.writeShort(0, 60);
   
-  sendToClient(nmeaData.getBytes(), 63);
+  sendData(nmeaData.getBytes(), 63);
 }
 
 double convertToDecimalDegrees(const char *latLon, const char *direction) {

@@ -63,21 +63,21 @@ void motorDrive(void) {
     // Used with Cytron MD30C Driver
     // Steering Motor
     // Dir + PWM Signal
-    motorON = true;
+    
+    if (!motorON){
+      analogWrite(DIR1_RL_ENABLE, 255);
+      motorON = true;
+    }
     if (steerConfig.CytronDriver) {
       // Cytron MD30C Driver Dir + PWM Signal
       if (pwmDrive >= 0) {
-        analogWrite(DIR1_RL_ENABLE, 255);
+        analogWrite(PWM1_LPWM, 255);
       } else {
-        analogWrite(DIR1_RL_ENABLE, 0);
+        analogWrite(PWM1_LPWM, 0);
       }
       //write out the 0 to 255 value
-      analogWrite(PWM1_LPWM, abs(pwmDrive));
+      analogWrite(PWM2_RPWM, abs(pwmDrive));
     } else {
-
-      // IBT 2 Driver Dir1 connected to BOTH enables
-      // PWM Left + PWM Right Signal
-      analogWrite(DIR1_RL_ENABLE, 255);
 
       if (pwmDrive > 0) {
         analogWrite(PWM2_RPWM, 0);  //Turn off before other one on

@@ -246,7 +246,7 @@ void parsePacket(uint8_t* packet, int size, IPAddress IP) {
           PGN_253[11] = switchByte;
           PGN_253[12] = (uint8_t)pwmDisplay;
 
-          sendToClient(PGN_253, sizeof(PGN_253));
+          sendData(PGN_253, sizeof(PGN_253));
 
           //Steer Data 2 -------------------------------------------------
           if (steerConfig.PressureSensor || steerConfig.CurrentSensor) {
@@ -254,7 +254,7 @@ void parsePacket(uint8_t* packet, int size, IPAddress IP) {
               //Send fromAutosteer2
               PGN_250[5] = (byte)sensorReading;
 
-              sendToClient(PGN_250, sizeof(PGN_250));
+              sendData(PGN_250, sizeof(PGN_250));
               aog2Count = 0;
             }
           }
@@ -396,22 +396,5 @@ void sendData(uint8_t* data, uint8_t datalen) {
   udp.beginPacket(ipDes, portDestination);
   udp.write(data, datalen);
   udp.endPacket();
-#endif
-}
-
-void sendToClient(uint8_t* data, uint8_t datalen) {
-  int16_t CK_A = 0;
-  for (uint8_t i = 2; i < datalen - 1; i++) {
-    CK_A = (CK_A + data[i]);
-  }
-  data[datalen - 1] = CK_A;
-#ifdef USB
-  Serial.write(data, datalen);
-#else
-  if (client.connected()) {
-    client.write(data, datalen);
-  } else {
-    //Serial.println("Packet send error.....");
-  }
 #endif
 }

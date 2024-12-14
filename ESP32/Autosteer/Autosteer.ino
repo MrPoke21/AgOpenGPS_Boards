@@ -28,10 +28,10 @@
 //Dir1 for Cytron Dir, Both L and R enable for IBT2
 #define DIR1_RL_ENABLE 27
 
-//PWM1 for Cytron PWM, Left PWM for IBT2
+//PWM1 for , Cytron Dir Left PWM for IBT2
 #define PWM1_LPWM 12
 
-//Not Connected for Cytron, Right PWM for IBT2
+//Cytron PWM, Right PWM for IBT2
 #define PWM2_RPWM 14
 
 //--------------------------- Switch Input Pins ------------------------
@@ -51,12 +51,6 @@ IPAddress myip = IPAddress(0, 0, 0, 0);
 IPAddress ipDes = IPAddress(192, 168, 0, 255);  //AOG IP
 #endif
 
-#ifdef WIFI
-WiFiClient client;
-#elif defined(ETHERNET)
-EthernetClient client;
-#endif
-
 void imuTask();
 
 void gpsStream();
@@ -64,10 +58,6 @@ void gpsStream();
 void inputHandler();
 
 void autosteerLoop();
-
-void commandHandler();
-
-void clientConnect();
 
 void BuildNmea();
 
@@ -80,8 +70,6 @@ bool useBNO08x = false;
 
 CyclicTimer t_imuTask;
 CyclicTimer t_autosteerLoop;
-CyclicTimer t_commandHandler;
-CyclicTimer t_ClientReconnect;
 
 uint8_t aog2Count = 0;
 float sensorReading;
@@ -261,72 +249,41 @@ void autosteerSetup() {
   }
   steerSettingsInit();
 }  // End of Setup
-/*
-TaskHandle_t Task1;
 
-void Task0code(void* pvParameters) {
-  for (;;) {
-    autoSteerPacketPerser();
-    gpsStream();
-  }
-}
-*/
+
 void setup() {
   // Setup Serial Monitor
 
   Serial.begin(115200);
-  Serial2.begin(115200);
+  Serial2.begin(115200, SERIAL_8N1, 16, 17);
 
   autosteerSetup();
 
-  initUDP();
-  initHandler();
-
   initIMU();
+  
+#ifndef USB
+  initUDP();
+#endif
+  initHandler();
 
   initInput();
 
   t_imuTask.setPeriod(50);
   t_autosteerLoop.setPeriod(AUTOSTEER_INTERVAL);
-  t_commandHandler.setPeriod(1000);
-  t_ClientReconnect.setPeriod(6000);
-
-  /*
-  // Setup Serial Monitor
-  xTaskCreatePinnedToCore(
-    Task0code, //ask function. 
-    "Task1",   // name of task. 
-    10000,     // Stack size of task 
-    NULL,      // parameter of the task 
-    1,         // priority of the task 
-    &Task1,    // Task handle to keep track of created task 
-    0);*/
 }
 
 void loop() {
   if (useBNO08x && t_imuTask.tickAndTest()) {
     imuTask();
   }
+
   gpsStream();
+
   autoSteerPacketPerser();
 
   if (t_autosteerLoop.tickAndTest()) {
     autosteerLoop();
   }
-  if (t_commandHandler.tickAndTest()) {
-    commandHandler();
-  }
-
-#ifndef USB
-  if (t_ClientReconnect.tickAndTest()) {
-    if (!client.connected()) {
-      Serial.println("Client has been connecting.....");
-      if (client.connect(ipDes, 16666)) {
-        Serial.println("Client has been connected");
-      }
-    }
-  }
-#endif
 }
 
 
