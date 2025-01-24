@@ -1,52 +1,39 @@
-#include <Adafruit_BNO08x.h>
+#include <zHandlers.h>
 
+uint8_t error = 0;
 
-#define RAD_TO_DEG_X_10 57.295779513082320876798154814105
-// Conversion to Hexidecimal
-const char *asciiHex = "0123456789ABCDEF";
-
-/* A parser is declared with 3 handlers at most */
-NMEAParser<2> parser;
-
-struct IMUVector {
-  uint32_t time;
-  float qr;
-  float qi;
-  float qj;
-  float qk;
-} imuVector;
-
-
-// booleans to see if we are using BNO08x
-
-uint8_t error;
-
-Adafruit_BNO08x bno08x(-1);
 // BNO08x address variables to check where it is
 const uint8_t bno08xAddresses[] = { 0x4A, 0x4B };
 const int16_t nrBNO08xAdresses = sizeof(bno08xAddresses) / sizeof(bno08xAddresses[0]);
 uint8_t bno08xAddress;
 
+euler_t ypr = euler_t();
+IMUVector imuVector = IMUVector();
+Adafruit_BNO08x bno08x(-1);
+/* A parser is declared with 3 handlers at most */
+NMEAParser<2> parser;
+
 sh2_SensorValue_t sensorValue;
 
-// the new PANDA sentence buffer
-char nmea[100];
+char nmea[100] = {};
 
 // GGA
-char fixTime[12];
-char latitude[15];
-char latNS[3];
-char longitude[15];
-char lonEW[3];
-char fixQuality[2];
-char numSats[4];
-char HDOP[5];
-char altitude[12];
-char ageDGPS[10];
+char fixTime[12] = {};
+char latitude[15] = {};
+char latNS[3] = {};
+char longitude[15] = {};
+char lonEW[3] = {};
+char fixQuality[2] = {};
+char numSats[4] = {};
+char HDOP[5] = {};
+char altitude[12] = {};
+char ageDGPS[10] = {};
 
 // VTG
 char speedKnots[10] = {};
 
+// Conversion to Hexidecimal
+const char *asciiHex = "0123456789ABCDEF";
 
 void initHandler() {
   // the dash means wildcard
@@ -97,8 +84,9 @@ void GGA_Handler()  //Rec'd GGA
 
 void gpsStream() {
   while (Serial2.available()) {
-    //Serial.print(Serial2.read());
-    parser << Serial2.read();
+    char x = (char)Serial2.read();
+    //Serial.print(x);
+    parser << x;
   }
 }
 
@@ -173,8 +161,6 @@ void imuTask() {
 
 
 void initIMU() {
-  //set up communication
-  Wire.begin();
   for (int16_t i = 0; i < nrBNO08xAdresses; i++) {
     bno08xAddress = bno08xAddresses[i];
 
@@ -206,12 +192,13 @@ void initIMU() {
 }
 
 void buildnmeaPGN() {
+
+  double lon = convertToDecimalDegrees(longitude, lonEW);
+  nmeaData.writeDouble(lon, 5);
+
   double lan = convertToDecimalDegrees(latitude, latNS);
   nmeaData.writeDouble(lan, 13);
 
-  double lon = convertToDecimalDegrees(longitude, lonEW);
-
-  nmeaData.writeDouble(lon, 5);
   float speed = String(speedKnots).toFloat();
   speed *= 1.852f;
   nmeaData.writeFloat(speed, 29);

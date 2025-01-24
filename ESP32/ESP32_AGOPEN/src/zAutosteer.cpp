@@ -1,3 +1,9 @@
+#include <Arduino.h>
+#include <zAutosteer.h>
+#include <main.h>
+#include <zInput.h>
+
+
 void autosteerLoop() {
 
   if (Autosteer_running) {

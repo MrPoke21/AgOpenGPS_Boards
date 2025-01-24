@@ -1,4 +1,5 @@
-#include "zADS1115.h"
+#include <zInput.h>
+
 int16_t steeringPosition = 0;               //from steering sensor
 ADS1115_lite adc(ADS1115_DEFAULT_ADDRESS);  // Use this for the 16-bit version ADS1115
 bool adcConnected = false;

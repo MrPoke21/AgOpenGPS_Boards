@@ -1,13 +1,5 @@
+#include <AutosteerPID.h>
 
-
-//pwm variables
-int16_t pwmDisplay = 0, pwmDrive = 0;
-float pValue = 0, errorAbs = 0, highLowPerDeg = 0;
-bool motorON = true;
-
-
-void steerSettingsInit() {
-}
 
 void calcSteeringPID(void) {
   //Proportional only
@@ -71,27 +63,28 @@ void motorDrive(void) {
     if (steerConfig.CytronDriver) {
       // Cytron MD30C Driver Dir + PWM Signal
       if (pwmDrive >= 0) {
-        analogWrite(PWM1_LPWM, 255);
+        ledcWrite(PWM_CHANNEL_LPWM, 255);
       } else {
-        analogWrite(PWM1_LPWM, 0);
+        ledcWrite(PWM_CHANNEL_LPWM, 0);
       }
       //write out the 0 to 255 value
+      ledcWrite(PWM_CHANNEL_RPWM, abs(pwmDrive));
       analogWrite(PWM2_RPWM, abs(pwmDrive));
     } else {
 
       if (pwmDrive > 0) {
-        analogWrite(PWM2_RPWM, 0);  //Turn off before other one on
-        analogWrite(PWM1_LPWM, pwmDrive);
+        ledcWrite(PWM_CHANNEL_RPWM, 0);
+        ledcWrite(PWM_CHANNEL_LPWM, pwmDrive);
       } else {
-        analogWrite(PWM1_LPWM, 0);  //Turn off before other one on
-        analogWrite(PWM2_RPWM, abs(pwmDrive));
+        ledcWrite(PWM_CHANNEL_LPWM, 0);
+        ledcWrite(PWM_CHANNEL_RPWM, abs(pwmDrive));
       }
     }
   } else {
     if (motorON) {
       analogWrite(DIR1_RL_ENABLE, 0);
       if (steerConfig.CytronDriver) {
-        analogWrite(PWM1_LPWM, 0);
+        ledcWrite(PWM_CHANNEL_LPWM, 0);
       }
       motorON = false;
     }
