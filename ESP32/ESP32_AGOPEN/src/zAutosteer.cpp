@@ -49,12 +49,13 @@ void autosteerLoop() {
     switchByte |= (steerSwitch << 1);  //put steerswitch status in bit 1 position
     switchByte |= workSwitch;
     calcSteerAngle();
-    calcSteeringPID(); 
+    if((steerEnable && motorON) || (steerEnable != motorON))
+    {
+      calcSteeringPID(); 
+    }
     //end of timed loop
   }
-  //This runs continuously, outside of the timed loop, keeps checking for new udpData, turn sense
-  //delay(1);
-
+  
   // Speed pulse
   /**
   if (gpsSpeedUpdateTimer < 1000)

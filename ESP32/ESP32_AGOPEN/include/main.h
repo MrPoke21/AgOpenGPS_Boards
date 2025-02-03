@@ -20,7 +20,7 @@
 //Connect ground only for cytron, Connect Ground and +5v for IBT2
 
 //Dir1 for Cytron Dir, Both L and R enable for IBT2
-#define DIR1_RL_ENABLE 27
+#define PWM_ENABLE 27
 
 //PWM1 for , Cytron Dir Left PWM for IBT2
 #define PWM1_LPWM 12
@@ -100,7 +100,7 @@ extern float steerAngleSetPoint;  //the desired angle from AgOpen
 //float steerAngleError = 0;     //setpoint - actual
 extern int16_t helloSteerPosition;
 extern uint8_t pwmDisplay;
-
+extern bool motorON;
 //Steer switch button  ***********************************************************************************************************
 extern uint8_t currentState, reading, previous;
 

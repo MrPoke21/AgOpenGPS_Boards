@@ -34,6 +34,7 @@ uint8_t guidanceStatus = 0;
 uint8_t prevGuidanceStatus = 0;
 bool guidanceStatusChanged = false;
 bool steerEnable = false;
+bool motorON = true;
 
 //speed sent as *10
 float gpsSpeed = 0;
@@ -61,19 +62,14 @@ Storage steerSettings = Storage();
 void autosteerSetup() {
 
 
-  pinMode(DIR1_RL_ENABLE, OUTPUT);
-  analogWrite(DIR1_RL_ENABLE, 0);
+  pinMode(PWM_ENABLE, OUTPUT);
+  analogWrite(PWM_ENABLE, 0);
 
   ledcSetup(PWM_CHANNEL_LPWM, PWM_FREQ, PWM_RESOLUTION);
   ledcSetup(PWM_CHANNEL_RPWM, PWM_FREQ, PWM_RESOLUTION);
 
   ledcAttachPin(PWM1_LPWM, PWM_CHANNEL_LPWM);
   ledcAttachPin(PWM2_RPWM, PWM_CHANNEL_RPWM);
-
-  pinMode(PWM1_LPWM, OUTPUT);
-  pinMode(PWM2_RPWM, OUTPUT);
-  analogWrite(PWM1_LPWM, 0);
-  analogWrite(PWM2_RPWM, 0);
 
   EEPROM.begin(80);
   EEPROM.get(0, EEread);  // read identifier
@@ -131,10 +127,10 @@ void loop() {
 
 void printLnByteArray(byte* data, uint8_t datalen) {
   for (int i = 0; i < datalen; i++) {
-    Serial2.print(data[i]);
-    Serial2.print(" ");
+    Serial.print(data[i]);
+    Serial.print(" ");
   }
-  Serial2.println();
+  Serial.println();
 }
 
 void sendData(byte* data, uint8_t datalen) {
@@ -145,6 +141,9 @@ void sendData(byte* data, uint8_t datalen) {
   }
   data[datalen - 1] = CK_A;
 
+  while (Serial.availableForWrite() < datalen) {
+        delayMicroseconds(10); // Várj rövid időt, amíg van hely a pufferben
+    }
   Serial.write(data, datalen);
   Serial.flush();
 }

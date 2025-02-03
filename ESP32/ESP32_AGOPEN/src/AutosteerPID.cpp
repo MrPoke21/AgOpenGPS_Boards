@@ -57,7 +57,7 @@ void motorDrive(void) {
     // Dir + PWM Signal
     
     if (!motorON){
-      analogWrite(DIR1_RL_ENABLE, 255);
+      analogWrite(PWM_ENABLE, 255);
       motorON = true;
     }
     if (steerConfig.CytronDriver) {
@@ -82,10 +82,9 @@ void motorDrive(void) {
     }
   } else {
     if (motorON) {
-      analogWrite(DIR1_RL_ENABLE, 0);
-      if (steerConfig.CytronDriver) {
-        ledcWrite(PWM_CHANNEL_LPWM, 0);
-      }
+      analogWrite(PWM_ENABLE, 0);
+      ledcWrite(PWM_CHANNEL_LPWM, 0);
+      ledcWrite(PWM_CHANNEL_RPWM, 0);
       motorON = false;
     }
   }

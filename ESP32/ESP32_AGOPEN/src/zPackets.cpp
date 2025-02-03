@@ -88,8 +88,8 @@ void parsePacket(byte* packet, int size) {
   if (packet[0] == 128 && packet[1] == 129) {
     int lenght = packet[4] + 6;
     if (lenght != size) {
-      Serial2.print("Packet: lenght error: ");
-      Serial2.println(size);
+      Serial.print("Packet: lenght error: ");
+      Serial.println(size);
       printLnByteArray(packet, lenght);
       return;
     }
@@ -100,8 +100,8 @@ void parsePacket(byte* packet, int size) {
     }
 
     if (packet[lenght - 1] != (byte)CK_A) {
-      Serial2.println("Packet: CRC error: ");
-      Serial2.print(CK_A);
+      Serial.println("Packet: CRC error: ");
+      Serial.print(CK_A);
       printLnByteArray(packet, lenght);
       return;
     }
@@ -263,7 +263,9 @@ void parsePacket(byte* packet, int size) {
           if (len > 1) {
             for (int i = 0; i < len; i++) {
               ntripData[i] = packet[i+5];
-              //Serial2.write(packet[i + 5]);
+            }
+            while (Serial2.availableForWrite() < len) {
+                delayMicroseconds(10); // Várj rövid időt, amíg van hely a pufferben
             }
             Serial2.write(ntripData, len);
             Serial2.flush();
@@ -272,7 +274,7 @@ void parsePacket(byte* packet, int size) {
         }
     }
   } else {
-    Serial2.print("Unknown packet!!! : ");
+    Serial.print("Unknown packet!!! : ");
     printLnByteArray(packet, size);
   }
 }
