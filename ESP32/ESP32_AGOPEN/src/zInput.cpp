@@ -1,19 +1,21 @@
 #include <zInput.h>
+#include <Configuration.h>
 
 int16_t steeringPosition = 0;               //from steering sensor
-ADS1115_lite adc(ADS1115_DEFAULT_ADDRESS);  // Use this for the 16-bit version ADS1115
+Adafruit_ADS1115 adc;  // Use this for the 16-bit version ADS1115
 bool adcConnected = false;
-
+int16_t current_zero = 0; 
 void initInput() {
   //keep pulled high and drag low to activate, noise free safe
   pinMode(WORKSW_PIN, INPUT_PULLUP);
   pinMode(STEERSW_PIN, INPUT_PULLUP);
   // Check ADC
-  if (adc.testConnection()) {
+  if (adc.begin()) {
     Serial.println("ADC Connecton OK");
-    adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS);  //128 samples per second
-    adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
+    adc.setDataRate(RATE_ADS1115_128SPS);  //128 samples per second
+    adc.setGain(GAIN_TWOTHIRDS);
     adcConnected = true;
+    current_zero = adc.readADC_SingleEnded(1);
   } else {
     Serial.println("ADC Connecton FAILED!");
   }
@@ -21,9 +23,10 @@ void initInput() {
 
 
 void inputHandler() {
-  // Load sensor?
-  if (steerConfig.PressureSensor || steerConfig.CurrentSensor) {
-  }
+    if (!adcConnected) {
+    return;
+    }
+  int sensore = adc.readADC_SingleEnded(1);
 
   // Pressure sensor?
   if (steerConfig.PressureSensor) {
@@ -38,10 +41,12 @@ void inputHandler() {
 
   // Current sensor?
   if (steerConfig.CurrentSensor) {
-    sensorSample = (abs(775 - sensorSample)) * 0.5;
+    sensorSample = abs((float)sensore-current_zero);
+
+    sensorSample = sensorSample*CURRENT_SENSORE_MODIFIER;    
+    
     sensorReading = sensorReading * 0.7 + sensorSample * 0.3;
     sensorReading = _min(sensorReading, 255);
-
     if (sensorReading >= steerConfig.PulseCountMax) {
       steerSwitch = 1;  // reset values like it turned off
       currentState = 1;
@@ -51,18 +56,11 @@ void inputHandler() {
 }
 
 void calcSteerAngle() {
-  if (adcConnected) {
-    if (steerConfig.SingleInputWAS)  //Single Input ADS
-    {
-      adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
-    } else  //ADS1115 Differential Mode
-    {
-      adc.setMux(ADS1115_REG_CONFIG_MUX_DIFF_0_1);
-    }
 
-    steeringPosition = adc.getConversion();
-    adc.triggerConversion();
+  if (!adcConnected) {
+    return;
   }
+    steeringPosition = adc.readADC_SingleEnded(0);
   steeringPosition = (steeringPosition >> 1);  //bit shift by 2  0 to 13610 is 0 to 5v
   helloSteerPosition = steeringPosition - 6800;
   //convert position to steer angle. 32 counts per degree of steer pot position in my case

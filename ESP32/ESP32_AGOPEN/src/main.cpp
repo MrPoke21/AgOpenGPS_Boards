@@ -140,10 +140,6 @@ void sendData(byte* data, uint8_t datalen) {
     CK_A = (CK_A + data[i]);
   }
   data[datalen - 1] = CK_A;
-
-  while (Serial.availableForWrite() < datalen) {
-        delayMicroseconds(10); // Várj rövid időt, amíg van hely a pufferben
-    }
+  
   Serial.write(data, datalen);
-  Serial.flush();
 }

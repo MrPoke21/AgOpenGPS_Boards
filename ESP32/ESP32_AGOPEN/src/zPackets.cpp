@@ -241,6 +241,7 @@ void parsePacket(byte* packet, int size) {
 
           sendData(helloFromAutoSteer, sizeof(helloFromAutoSteer));
           if (useBNO08x) {
+            delay(5);
             sendData(helloFromIMU, sizeof(helloFromIMU));
           }
           break;
@@ -264,11 +265,7 @@ void parsePacket(byte* packet, int size) {
             for (int i = 0; i < len; i++) {
               ntripData[i] = packet[i+5];
             }
-            while (Serial2.availableForWrite() < len) {
-                delayMicroseconds(10); // Várj rövid időt, amíg van hely a pufferben
-            }
             Serial2.write(ntripData, len);
-            Serial2.flush();
           }
           break;
         }
