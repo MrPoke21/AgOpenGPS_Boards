@@ -93,8 +93,10 @@ void autosteerSetup() {
 
 void setup() {
   // Setup Serial Monitor
-  Serial.begin(115200);
+  Serial.begin(460800);
   Serial2.begin(115200, SERIAL_8N1, 16, 17);
+  delay(500);
+  
   //set up communication
   Wire.begin();
   delay(500);
