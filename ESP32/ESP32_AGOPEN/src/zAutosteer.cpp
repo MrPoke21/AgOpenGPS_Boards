@@ -12,18 +12,14 @@ void autosteerLoop() {
     if (steerConfig.SteerSwitch == 1) // steer switch on - off
     {
       steerSwitch = digitalRead(
-          STEERSW_PIN); // read auto steer enable switch open = 0n closed = Off
+          STEERSW_PIN); // read auto steer enable switch: open = On, closed = Off
     } else if (steerConfig.SteerButton == 1) // steer Button momentary
     {
       reading = digitalRead(STEERSW_PIN);
-      if (reading == LOW && previous == HIGH) {
-        if (currentState == 1) {
-          currentState = 0;
-          steerSwitch = 0;
-        } else {
-          currentState = 1;
-          steerSwitch = 1;
-        }
+      // Toggle on rising edge (LOW to HIGH transition)
+      if (reading == HIGH && previous == LOW) {
+        currentState = currentState ? 0 : 1;  // Toggle state
+        steerSwitch = currentState;
       }
       previous = reading;
     } else // No steer switch and no steer button
@@ -53,7 +49,8 @@ void autosteerLoop() {
                                       // position
     switchByte |= workSwitch;
     calcSteerAngle();
-    if ((steerEnable && motorON) || (steerEnable != motorON)) {
+    // Only calculate PID when steering is enabled to save resources
+    if (steerEnable) {
       calcSteeringPID();
     }
     // end of timed loop

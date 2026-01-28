@@ -2,10 +2,16 @@
 #include <Arduino.h>
 #include <zPackets.h>
 #include <main.h>
+
+// Buffer size definitions
+#define BUFFER_SIZE 1024
+#define MAX_PACKET_SIZE 256
+#define MAX_PACKET_DATA_SIZE (MAX_PACKET_SIZE - 6)  // Header + checksum
+
 //uint8_t data[128];
-byte buffer[1024];
-byte packetBuffer[1024];
-byte ntripData[1024];
+byte buffer[BUFFER_SIZE];
+byte packetBuffer[MAX_PACKET_SIZE];
+byte ntripData[BUFFER_SIZE];
 int stateIndex = 0;
 int totalHeaderByteCount = 5;
 int count;
@@ -23,7 +29,7 @@ byte PGN_250[] = { 0x80, 0x81, 126, 0xFA, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0xCC };
 
 void autoSteerPacketPerser() {
   int aas = Serial.available();
-  if (aas < 1) {
+  if (aas < 1 || aas > BUFFER_SIZE) {
     return;
   }
 
@@ -31,6 +37,13 @@ void autoSteerPacketPerser() {
   byte a;
   for (int i = 0; i < aas; i++) {
     a = buffer[i];
+    
+    // Prevent buffer overflow
+    if (stateIndex >= MAX_PACKET_SIZE - 1) {
+      Serial.println("ERROR: Packet buffer overflow");
+      stateIndex = 0;
+      continue;
+    }
 
     switch (stateIndex) {
       case 0:  //find 0x80
@@ -85,12 +98,22 @@ void autoSteerPacketPerser() {
 }
 
 void parsePacket(byte* packet, int size) {
+  // Validate packet size
+  if (size < 6 || size > MAX_PACKET_SIZE || packet == NULL) {
+    Serial.print("ERROR: Invalid packet size: ");
+    Serial.println(size);
+    return;
+  }
+  
   if (packet[0] == 128 && packet[1] == 129) {
     int lenght = packet[4] + 6;
-    if (lenght != size) {
-      Serial.print("Packet: lenght error: ");
+    
+    // Bounds check
+    if (lenght < 6 || lenght > MAX_PACKET_SIZE || lenght != size) {
+      Serial.print("ERROR: Packet length mismatch: expected ");
+      Serial.print(lenght);
+      Serial.print(" got ");
       Serial.println(size);
-      printLnByteArray(packet, lenght);
       return;
     }
 
@@ -100,22 +123,30 @@ void parsePacket(byte* packet, int size) {
     }
 
     if (packet[lenght - 1] != (byte)CK_A) {
-      Serial.println("Packet: CRC error: ");
-      Serial.print(CK_A);
-      printLnByteArray(packet, lenght);
+      Serial.print("ERROR: Checksum mismatch. Expected: 0x");
+      Serial.print(CK_A, HEX);
+      Serial.print(" Got: 0x");
+      Serial.println(packet[lenght - 1], HEX);
       return;
     }
   }
 
   if (packet[0] == 0x80 && packet[1] == 0x81 && packet[2] == 0x7F)  //Data
   {
+    int packetLength = packet[4] + 6;
+    
     switch (packet[3]) {
       case 0xFE:
         {
+          // Validate packet has minimum required length for 0xFE command
+          if (packetLength < 13) {
+            Serial.println("ERROR: 0xFE packet too short");
+            break;
+          }
+          
           gpsSpeed = ((float)(packet[5] | packet[6] << 8)) * 0.1;
 
           prevGuidanceStatus = guidanceStatus;
-
           guidanceStatus = packet[7];
           guidanceStatusChanged = (guidanceStatus != prevGuidanceStatus);
 
@@ -126,8 +157,9 @@ void parsePacket(byte* packet, int size) {
             steerEnable = false;  //turn off steering motor
           } else                  //valid conditions to turn on autosteer
           {
-            steerEnable = true;  //reset watchdog
+            steerEnable = true;   //reset watchdog
           }
+          
           //Bit 10 Tram
           tram = packet[10];
           //Bit 11

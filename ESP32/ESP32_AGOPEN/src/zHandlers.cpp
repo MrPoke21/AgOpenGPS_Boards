@@ -164,30 +164,37 @@ void initIMU() {
   for (int16_t i = 0; i < nrBNO08xAdresses; i++) {
     bno08xAddress = bno08xAddresses[i];
 
-    //Serial.print("\r\nChecking for BNO08X on ");
-    //Serial.println(bno08xAddress, HEX);
+    Serial.print("Checking for BNO08X at address 0x");
+    Serial.println(bno08xAddress, HEX);
+    
     Wire.beginTransmission(bno08xAddress);
     error = Wire.endTransmission();
 
     if (error == 0) {
-      //Serial.println("Error = 0");
       Serial.print("0x");
       Serial.print(bno08xAddress, HEX);
-      Serial.println(" BNO08X Ok.");
-      // Initialize BNO080 lib
-      if (bno08x.begin_I2C((int32_t)bno08xAddress))  //??? Passing NULL to non pointer argument, remove maybe ???
-      {
+      Serial.println(" BNO08X detected.");
+      
+      // Initialize BNO080 lib with proper address casting
+      if (bno08x.begin_I2C(bno08xAddress)) {
         useBNO08x = true;
+        Serial.println("BNO08x initialized successfully");
+        setReports();  // Enable sensor reports after init
         break;
       } else {
-        Serial.println("BNO080 not detected at given I2C address.");
+        Serial.println("BNO080 initialization failed at given I2C address.");
       }
     } else {
-      //Serial.println("Error = 4");
       Serial.print("0x");
       Serial.print(bno08xAddress, HEX);
-      Serial.println(" BNO08X not Connected or Found");
+      Serial.println(" BNO08X not found (error code: ");
+      Serial.print(error);
+      Serial.println(")");
     }
+  }
+  
+  if (!useBNO08x) {
+    Serial.println("WARNING: BNO08x not found on any address - IMU disabled");
   }
 }
 
@@ -228,6 +235,12 @@ void buildnmeaPGN() {
 }
 
 double convertToDecimalDegrees(const char *latLon, const char *direction) {
+  // Input validation
+  if (!latLon || !direction || latLon[0] == '\0') {
+    Serial.println("ERROR: Invalid lat/lon string");
+    return 0.0;
+  }
+  
   char deg[4] = { 0 };
   char *dot, *min;
   int len;
@@ -236,8 +249,15 @@ double convertToDecimalDegrees(const char *latLon, const char *direction) {
   if ((dot = strchr(latLon, '.'))) {   // decimal point was found
     min = dot - 2;                     // mark the start of minutes 2 chars back
     len = min - latLon;                // find the length of degrees
+    
+    if (len < 0 || len > 3) {
+      Serial.println("ERROR: Invalid lat/lon format");
+      return 0.0;
+    }
+    
     strncpy(deg, latLon, len);         // copy the degree string to allow conversion to float
     dec = atof(deg) + atof(min) / 60;  // convert to float
+    
     if (strcmp(direction, "S") == 0 || strcmp(direction, "W") == 0)
       dec *= -1;
   }

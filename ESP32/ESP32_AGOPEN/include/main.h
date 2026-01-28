@@ -138,6 +138,8 @@ extern Setup steerConfig;  // 9 bytes
 
 class NmeaPGN {
 public:
+  static const uint16_t DATA_SIZE = 63;  // Maximum packet size
+  
   NmeaPGN() {
     data[0] = 0x80;
     data[1] = 0x81;
@@ -146,36 +148,38 @@ public:
     data[4] = 0x39;  // nmea total array count
   };
 
-  void writeDouble(double value, int index) {
-    byte* tmp = (byte*)&value;
-    for (int i = 0; i < 8; i++) {
-      data[i + index] = tmp[i];
+  // Bounds-checked write method
+  bool writeBytes(const byte* value, int length, int index) {
+    if (index + length > DATA_SIZE) {
+      Serial.print("ERROR: NmeaPGN buffer overflow at index ");
+      Serial.println(index);
+      return false;
     }
+    memcpy(&data[index], value, length);
+    return true;
+  }
+
+  void writeDouble(double value, int index) {
+    writeBytes((byte*)&value, 8, index);
   }
 
   void writeFloat(float value, int index) {
-    byte* tmp = (byte*)&value;
-    for (int i = 0; i < 4; i++) {
-      data[i + index] = tmp[i];
-    }
+    writeBytes((byte*)&value, 4, index);
   }
 
   void writeInt(int value, int index) {
-    byte* tmp = (byte*)&value;
-    for (int i = 0; i < 4; i++) {
-      data[i + index] = tmp[i];
-    }
+    writeBytes((byte*)&value, 4, index);
   }
 
   void writeShort(short value, int index) {
-    byte* tmp = (byte*)&value;
-    for (int i = 0; i < 4; i++) {
-      data[i + index] = tmp[i];
-    }
+    // Short is 2 bytes, not 4 - BUG FIX
+    writeBytes((byte*)&value, 2, index);
   }
 
   void writeByte(byte value, int index) {
-    data[index] = value;
+    if (index < DATA_SIZE) {
+      data[index] = value;
+    }
   }
 
   byte* getBytes() {
@@ -183,7 +187,7 @@ public:
   }
 
 private:
-  byte data[63];
+  byte data[DATA_SIZE];
 };
 
 extern NmeaPGN nmeaData;
