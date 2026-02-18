@@ -7,6 +7,7 @@
 #include <zHandlers.h>
 #include <zPackets.h>
 #include <zAutosteer.h>
+#include <zUDP.h>
 
 bool useBNO08x = false;
 
@@ -102,6 +103,17 @@ void setup() {
   delay(500);
   autosteerSetup();
 
+  // Initialize WiFi and UDP
+#if ENABLE_UDP
+  if (initWiFi()) {
+    delay(500);
+    initUDP();
+    printWiFiStatus();
+  } else {
+    DEBUG_PRINTLN("[SETUP] WiFi initialization failed");
+  }
+#endif
+
   initIMU();
   
   initHandler();
@@ -117,6 +129,9 @@ void loop() {
     imuTask();
   }
 
+  // Non-blocking ADC cache update (every 20ms)
+  updateADCCacheAsync();  // Non-blocking - actual ADC reads happen in background task
+
   gpsStream();
 
   autoSteerPacketPerser();
@@ -129,10 +144,10 @@ void loop() {
 
 void printLnByteArray(byte* data, uint8_t datalen) {
   for (int i = 0; i < datalen; i++) {
-    Serial.print(data[i]);
-    Serial.print(" ");
+    DEBUG_PRINT(data[i]);
+    DEBUG_PRINT(" ");
   }
-  Serial.println();
+  DEBUG_PRINTLN();
 }
 
 void sendData(byte* data, uint8_t datalen) {
@@ -143,5 +158,19 @@ void sendData(byte* data, uint8_t datalen) {
   }
   data[datalen - 1] = CK_A;
   
+  DEBUG_PRINT("[SEND] Sending ");
+  DEBUG_PRINT(datalen);
+  DEBUG_PRINT(" bytes via ");
+  
+  // Send via Serial and/or UDP depending on configuration
+#if ENABLE_UDP
+  // Send both Serial and UDP
+  DEBUG_PRINTLN("UDP");
+  //Serial.write(data, datalen);
+  sendUDP(data, datalen);
+#else
+  // Only Serial
+  DEBUG_PRINTLN("Serial");
   Serial.write(data, datalen);
+#endif
 }

@@ -1,3 +1,4 @@
+#include <Configuration.h>
 #include <zHandlers.h>
 
 uint8_t error = 0;
@@ -83,10 +84,14 @@ void GGA_Handler()  //Rec'd GGA
 }
 
 void gpsStream() {
-  while (Serial2.available()) {
+  // Non-blocking GPS stream processing with character limit per loop
+  int charCount = 0;
+  int maxCharsPerLoop = 64;  // Process max 64 chars per loop to avoid blocking
+  
+  while (Serial2.available() && charCount < maxCharsPerLoop) {
     char x = (char)Serial2.read();
-    //Serial.print(x);
     parser << x;
+    charCount++;
   }
 }
 
@@ -132,7 +137,7 @@ void quaternionToEuler(float qr, float qi, float qj, float qk) {
 
 void setReports() {
   if (!bno08x.enableReport(SH2_GAME_ROTATION_VECTOR)) {
-    Serial.println("Could not enable stabilized remote vector");
+    DEBUG_PRINTLN("Could not enable stabilized remote vector");
     return;
   }
 }
@@ -143,7 +148,7 @@ void imuTask() {
     return;
   }
   if (bno08x.wasReset()) {
-    Serial.println("sensor was reset ");
+    DEBUG_PRINTLN("sensor was reset ");
     setReports();
   }
 
@@ -164,37 +169,37 @@ void initIMU() {
   for (int16_t i = 0; i < nrBNO08xAdresses; i++) {
     bno08xAddress = bno08xAddresses[i];
 
-    Serial.print("Checking for BNO08X at address 0x");
-    Serial.println(bno08xAddress, HEX);
+    DEBUG_PRINT("Checking for BNO08X at address 0x");
+    DEBUG_PRINTLN(bno08xAddress, HEX);
     
     Wire.beginTransmission(bno08xAddress);
     error = Wire.endTransmission();
 
     if (error == 0) {
-      Serial.print("0x");
-      Serial.print(bno08xAddress, HEX);
-      Serial.println(" BNO08X detected.");
+      DEBUG_PRINT("0x");
+      DEBUG_PRINT(bno08xAddress, HEX);
+      DEBUG_PRINTLN(" BNO08X detected.");
       
       // Initialize BNO080 lib with proper address casting
       if (bno08x.begin_I2C(bno08xAddress)) {
         useBNO08x = true;
-        Serial.println("BNO08x initialized successfully");
+        DEBUG_PRINTLN("BNO08x initialized successfully");
         setReports();  // Enable sensor reports after init
         break;
       } else {
-        Serial.println("BNO080 initialization failed at given I2C address.");
+        DEBUG_PRINTLN("BNO080 initialization failed at given I2C address.");
       }
     } else {
-      Serial.print("0x");
-      Serial.print(bno08xAddress, HEX);
-      Serial.println(" BNO08X not found (error code: ");
-      Serial.print(error);
-      Serial.println(")");
+      DEBUG_PRINT("0x");
+      DEBUG_PRINT(bno08xAddress, HEX);
+      DEBUG_PRINTLN(" BNO08X not found (error code: ");
+      DEBUG_PRINT(error);
+      DEBUG_PRINTLN(")");
     }
   }
   
   if (!useBNO08x) {
-    Serial.println("WARNING: BNO08x not found on any address - IMU disabled");
+    DEBUG_PRINTLN("WARNING: BNO08x not found on any address - IMU disabled");
   }
 }
 
@@ -206,20 +211,20 @@ void buildnmeaPGN() {
   double lan = convertToDecimalDegrees(latitude, latNS);
   nmeaData.writeDouble(lan, 13);
 
-  float speed = String(speedKnots).toFloat();
+  float speed = atof(speedKnots);
   speed *= 1.852f;
   nmeaData.writeFloat(speed, 29);
 
-  nmeaData.writeFloat(((String)altitude).toFloat(), 37);
+  nmeaData.writeFloat(atof(altitude), 37);
 
-  nmeaData.writeShort((short)(String(numSats).toInt()), 41);
+  nmeaData.writeShort((short)atoi(numSats), 41);
 
-  nmeaData.writeByte((byte)(String(fixQuality).toInt()), 43);
+  nmeaData.writeByte((byte)atoi(fixQuality), 43);
 
-  short hdopx100 = (short)((String(HDOP).toFloat()) * 100);
+  short hdopx100 = (short)(atof(HDOP) * 100);
   nmeaData.writeShort(hdopx100, 44);
 
-  short ageDGPSx100 = (short)(String(ageDGPS).toFloat()) * 100;
+  short ageDGPSx100 = (short)(atof(ageDGPS) * 100);
   nmeaData.writeShort(ageDGPSx100, 46);
 
   nmeaData.writeFloat(ypr.yaw, 48);

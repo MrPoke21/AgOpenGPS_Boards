@@ -45,9 +45,6 @@
 
 #define PACKET_TIMEOUT 1000
 
-//How many degrees before decreasing Max PWM
-#define LOW_HIGH_DEGREES 2.0
-
 //Functions
 void sendData(byte* data, uint8_t datalen);
 void printLnByteArray(byte* data, uint8_t datalen);

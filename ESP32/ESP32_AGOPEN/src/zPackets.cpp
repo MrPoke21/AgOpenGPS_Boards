@@ -1,12 +1,17 @@
 
 #include <Arduino.h>
+#include <Configuration.h>
 #include <zPackets.h>
+#include <zUDP.h>
 #include <main.h>
 
 // Buffer size definitions
 #define BUFFER_SIZE 1024
 #define MAX_PACKET_SIZE 256
 #define MAX_PACKET_DATA_SIZE (MAX_PACKET_SIZE - 6)  // Header + checksum
+
+// Forward declaration
+void processPacketBytes(byte* dataBuffer, uint16_t dataLen);
 
 //uint8_t data[128];
 byte buffer[BUFFER_SIZE];
@@ -25,22 +30,45 @@ byte PGN_253[] = { 0x80, 0x81, 126, 0xFD, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0xCC };
 //fromAutoSteerData FA 250 - sensor values etc
 byte PGN_250[] = { 0x80, 0x81, 126, 0xFA, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0xCC };
 
+//Scan reply
+byte scanReply[] = { 128, 129, 126, 203, 7, 0, 0, 0, 0, 0, 0, 0, 23 };
+
 
 
 void autoSteerPacketPerser() {
-  int aas = Serial.available();
-  if (aas < 1 || aas > BUFFER_SIZE) {
-    return;
+#if ENABLE_UDP == 1
+  // Process UDP data only
+  uint16_t udpLen = receiveUDP((uint8_t*)buffer, BUFFER_SIZE);
+  if (udpLen > 0) {
+    DEBUG_PRINTF("[PKT] Received %d bytes from UDP\n", udpLen);
+    processPacketBytes(buffer, udpLen);
   }
+#else
+  // Process Serial data only - non-blocking byte-by-byte read
+  int aas = Serial.available();
+  if (aas > 0) {
+    int readCount = (aas > 64) ? 64 : aas;
+    DEBUG_PRINT("[PKT] Received ");
+    DEBUG_PRINT(readCount);
+    DEBUG_PRINTLN(" bytes from Serial");
+    for (int i = 0; i < readCount; i++) {
+      byte b = Serial.read();
+      buffer[i] = b;
+    }
+    processPacketBytes(buffer, readCount);
+  }
+#endif
+}
 
-  Serial.readBytes(buffer, aas);
+// Helper function to process byte stream from either Serial or UDP
+void processPacketBytes(byte* dataBuffer, uint16_t dataLen) {
   byte a;
-  for (int i = 0; i < aas; i++) {
-    a = buffer[i];
+  for (int i = 0; i < dataLen; i++) {
+    a = dataBuffer[i];
     
     // Prevent buffer overflow
     if (stateIndex >= MAX_PACKET_SIZE - 1) {
-      Serial.println("ERROR: Packet buffer overflow");
+      DEBUG_PRINTLN("ERROR: Packet buffer overflow");
       stateIndex = 0;
       continue;
     }
@@ -85,6 +113,10 @@ void autoSteerPacketPerser() {
             if (stateIndex < length) {
               break;
             } else {
+              DEBUG_PRINT("[PKT] Complete packet: length=");
+              DEBUG_PRINT(length);
+              DEBUG_PRINT(", PGN=0x");
+              DEBUG_PRINTLN(packetBuffer[3], HEX);
               parsePacket(packetBuffer, length);
               //clear out the current pgn
               stateIndex = 0;
@@ -100,33 +132,38 @@ void autoSteerPacketPerser() {
 void parsePacket(byte* packet, int size) {
   // Validate packet size
   if (size < 6 || size > MAX_PACKET_SIZE || packet == NULL) {
-    Serial.print("ERROR: Invalid packet size: ");
-    Serial.println(size);
+    DEBUG_PRINT("[PKT] ERROR: Invalid packet size: ");
+    DEBUG_PRINTLN(size);
     return;
   }
   
+  DEBUG_PRINT("[PKT] Parsing packet: size=");
+  DEBUG_PRINT(size);
+  DEBUG_PRINT(", PGN=0x");
+  DEBUG_PRINTLN((size > 3) ? packet[3] : 0, HEX);
+  
   if (packet[0] == 128 && packet[1] == 129) {
-    int lenght = packet[4] + 6;
+    int length = packet[4] + 6;
     
     // Bounds check
-    if (lenght < 6 || lenght > MAX_PACKET_SIZE || lenght != size) {
-      Serial.print("ERROR: Packet length mismatch: expected ");
-      Serial.print(lenght);
-      Serial.print(" got ");
-      Serial.println(size);
+    if (length < 6 || length > MAX_PACKET_SIZE || length != size) {
+      DEBUG_PRINT("ERROR: Packet length mismatch: expected ");
+      DEBUG_PRINT(length);
+      DEBUG_PRINT(" got ");
+      DEBUG_PRINTLN(size);
       return;
     }
 
     byte CK_A = 0;
-    for (int j = 2; j < lenght - 1; j++) {
+    for (int j = 2; j < length - 1; j++) {
       CK_A += packet[j];
     }
 
-    if (packet[lenght - 1] != (byte)CK_A) {
-      Serial.print("ERROR: Checksum mismatch. Expected: 0x");
-      Serial.print(CK_A, HEX);
-      Serial.print(" Got: 0x");
-      Serial.println(packet[lenght - 1], HEX);
+    if (packet[length - 1] != (byte)CK_A) {
+      DEBUG_PRINT("ERROR: Checksum mismatch. Expected: 0x");
+      DEBUG_PRINT(CK_A, HEX);
+      DEBUG_PRINT(" Got: 0x");
+      DEBUG_PRINTLN(packet[length - 1], HEX);
       return;
     }
   }
@@ -178,6 +215,7 @@ void parsePacket(byte* packet, int size) {
           PGN_253[12] = (uint8_t)pwmDisplay;
 
           sendData(PGN_253, sizeof(PGN_253));
+          DEBUG_PRINTLN("[PKT] Response sent: PGN_253 (0xFD)");
 
           //Steer Data 2 -------------------------------------------------
           if (steerConfig.PressureSensor || steerConfig.CurrentSensor) {
@@ -186,6 +224,7 @@ void parsePacket(byte* packet, int size) {
               PGN_250[5] = (byte)sensorReading;
 
               sendData(PGN_250, sizeof(PGN_250));
+              DEBUG_PRINTLN("[PKT] Response sent: PGN_250 (0xFA)");
               aog2Count = 0;
             }
           }
@@ -273,7 +312,6 @@ void parsePacket(byte* packet, int size) {
 
           sendData(helloFromAutoSteer, sizeof(helloFromAutoSteer));
           if (useBNO08x) {
-            delay(5);
             sendData(helloFromIMU, sizeof(helloFromIMU));
           }
           break;
@@ -282,10 +320,31 @@ void parsePacket(byte* packet, int size) {
         {
           //make really sure this is the reply pgn
           if (packet[4] == 3 && packet[5] == 202 && packet[6] == 202) {
-            byte scanReply[] = { 128, 129, 126, 203, 7,
-                                 0, 0, 0, 0,
-                                 0, 0, 0, 23 };
+#if ENABLE_UDP
+            // Fill scanReply with local and remote IP addresses
+            IPAddress myIP;
+            
+            // Get local IP address based on WiFi mode
+#if WIFI_MODE == 1
+            myIP = WiFi.softAPIP();  // AP mode
+#else
+            myIP = WiFi.localIP();   // STA mode
+#endif
+            
+            // Fill local IP bytes (5-8)
+            scanReply[5] = myIP[0];
+            scanReply[6] = myIP[1];
+            scanReply[7] = myIP[2];
+            scanReply[8] = myIP[3];
+            
+            // Fill remote IP bytes (9-11 - first 3 octets)
+            scanReply[9] = udpRemoteIP[0];
+            scanReply[10] = udpRemoteIP[1];
+            scanReply[11] = udpRemoteIP[2];
+#endif
+            
             sendData(scanReply, sizeof(scanReply));
+            DEBUG_PRINTLN("[PKT] Response sent: scanReply (0xCB)");
           }
           break;
         }
@@ -303,7 +362,7 @@ void parsePacket(byte* packet, int size) {
         }
     }
   } else {
-    Serial.print("Unknown packet!!! : ");
+    DEBUG_PRINT("Unknown packet!!! : ");
     printLnByteArray(packet, size);
   }
 }

@@ -1,10 +1,9 @@
 #include <AutosteerPID.h>
+#include <Configuration.h>
 
 // Danfoss PWM constants
 #define DANFOSS_PWM_MIN -250
 #define DANFOSS_PWM_MAX 250
-#define DANFOSS_SHIFT_BITS 2  // Divide by 4
-#define DANFOSS_CENTER_POS 128
 
 void calcSteeringPID(void) {
   //Proportional only
