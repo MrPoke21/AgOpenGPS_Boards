@@ -8,39 +8,40 @@
 #include <zPackets.h>
 #include <zAutosteer.h>
 #include <zUDP.h>
+#include <zSerial.h>
 
 bool useBNO08x = false;
 
 CyclicTimer t_imuTask;
+CyclicTimer t_inputSwitches;
 CyclicTimer t_autosteerLoop;
 
 uint8_t aog2Count = 0;
 float sensorReading= 0;
-float sensorSample = 0;
 
 
 //EEPROM
 int16_t EEread = 0;
 
 //Relays
-bool isRelayActiveHigh = true;
-uint8_t relay = 0, relayHi = 0, uTurn = 0;
+uint8_t relay = 0, relayHi = 0;
 uint8_t tram = 0;
 
 //Switches
-uint8_t workSwitch = 0, steerSwitch = 1, switchByte = 0;
+uint8_t workSwitch = 0, steerSwitch = 1, switchByte = 0;  // steerSwitch defaults to 1 (enabled) when no switch configured
+
+// Steer enable state tracking - prevent rapid toggling
+bool prevSteerEnableCondition = false;
 
 //On Off
 uint8_t guidanceStatus = 0;
 uint8_t prevGuidanceStatus = 0;
 bool guidanceStatusChanged = false;
 bool steerEnable = false;
-bool motorON = true;
 
 //speed sent as *10
 float gpsSpeed = 0;
 bool GGA_Available = false;  //Do we have GGA on correct port?
-bool Autosteer_running = true;
 
 const bool invertRoll = true;  //Used for IMU with dual antenna
 
@@ -51,20 +52,18 @@ float steerAngleSetPoint = 0;  //the desired angle from AgOpen
 int16_t helloSteerPosition = 0;
 uint8_t pwmDisplay = 0;
 
-//Steer switch button  ***********************************************************************************************************
-uint8_t currentState = 1, reading, previous = 0;
-
-unsigned long lastPacket = 0;
-
 NmeaPGN nmeaData = NmeaPGN();
 Setup steerConfig = Setup();
 Storage steerSettings = Storage(); 
 
 void autosteerSetup() {
 
+  // Setup switch pins with internal pull-up (active-low configuration)
+  pinMode(WORKSW_PIN, INPUT_PULLUP);   // Work switch - pulled high, shorted to GND when active
+  pinMode(STEERSW_PIN, INPUT_PULLUP);  // Steer switch - pulled high, shorted to GND when active
 
   pinMode(PWM_ENABLE, OUTPUT);
-  analogWrite(PWM_ENABLE, 0);
+  digitalWrite(PWM_ENABLE, LOW);
 
   ledcSetup(PWM_CHANNEL_LPWM, PWM_FREQ, PWM_RESOLUTION);
   ledcSetup(PWM_CHANNEL_RPWM, PWM_FREQ, PWM_RESOLUTION);
@@ -103,6 +102,11 @@ void setup() {
   delay(500);
   autosteerSetup();
 
+  // Initialize Serial queue (always, whether UDP is enabled or not)
+  if (!initSerialQueue()) {
+    DEBUG_PRINTLN("[SETUP] Serial queue initialization failed");
+  }
+
   // Initialize WiFi and UDP
 #if ENABLE_UDP
   if (initWiFi()) {
@@ -121,10 +125,12 @@ void setup() {
   initInput();
 
   t_imuTask.setPeriod(50);
+  t_inputSwitches.setPeriod(200);  // 5 Hz for input switches
   t_autosteerLoop.setPeriod(AUTOSTEER_INTERVAL);
 }
 
 void loop() {
+  
   if (useBNO08x && t_imuTask.tickAndTest()) {
     imuTask();
   }
@@ -135,6 +141,10 @@ void loop() {
   gpsStream();
 
   autoSteerPacketPerser();
+
+  if (t_inputSwitches.tickAndTest()) {
+    readInputSwitches();  // Read switches at 5 Hz
+  }
 
   if (t_autosteerLoop.tickAndTest()) {
     autosteerLoop();
@@ -167,10 +177,14 @@ void sendData(byte* data, uint8_t datalen) {
   // Send both Serial and UDP
   DEBUG_PRINTLN("UDP");
   //Serial.write(data, datalen);
-  sendUDP(data, datalen);
+  if (!sendUDP(data, datalen)) {
+    DEBUG_PRINTLN("[SEND] ERROR: UDP queue full - packet dropped!");
+  }
 #else
-  // Only Serial
+  // Only Serial - send via queue (non-blocking)
   DEBUG_PRINTLN("Serial");
-  Serial.write(data, datalen);
+  if (!sendSerial(data, datalen)) {
+    DEBUG_PRINTLN("[SEND] ERROR: Serial queue full - packet dropped!");
+  }
 #endif
 }

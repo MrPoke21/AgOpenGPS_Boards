@@ -90,25 +90,20 @@ void inputHandler() {
 
   // Pressure sensor?
   if (steerConfig.PressureSensor) {
-    sensorSample = sensor * 0.25;  // Fixed: was *= which would accumulate
-    sensorReading = sensorReading * 0.6 + sensorSample * 0.4;
+    // Sensor value already EMA-filtered in ADC task, just scale it
+    sensorReading = sensor * 0.25f;
     if (sensorReading >= steerConfig.PulseCountMax) {
       steerSwitch = 1; // reset values like it turned off
-      currentState = 1;
-      previous = 0;
     }
   }
 
   // Current sensor?
   if (steerConfig.CurrentSensor) {
-    sensorSample = abs((float)sensor - current_zero);
-    sensorSample = sensorSample * CURRENT_SENSORE_MODIFIER;
-    sensorReading = sensorReading * 0.7 + sensorSample * 0.3;
-    sensorReading = constrain(sensorReading, 0, 255);  // Better than _min
+    // Sensor value already EMA-filtered in ADC task, just offset and scale
+    sensorReading = abs((float)sensor - current_zero) * CURRENT_SENSORE_MODIFIER;
+    sensorReading = constrain(sensorReading, 0, 255);
     if (sensorReading >= steerConfig.PulseCountMax) {
       steerSwitch = 1; // reset values like it turned off
-      currentState = 1;
-      previous = 0;
     }
   }
 }
@@ -118,8 +113,7 @@ void calcSteerAngle() {
     return;
   }
   
-  // Use cached steering position instead of blocking read every time
-  // ADC readings are already updated in a separate interval
+  // Use cached steering position - already EMA filtered in ADC task
   int16_t sensor = filteredSteeringSensor;
   
   // Validate sensor reading
@@ -127,36 +121,27 @@ void calcSteerAngle() {
     DEBUG_PRINTLN("ERROR: Invalid steering position ADC reading");
     return;
   }
-
-  if (steeringPosition == 0 && sensor > 0) {
-    steeringPosition = sensor >> 1; // 1st time init
-  }
-
-  // EMA filter: filtered = (filtered * 7 + raw * 3) / 10
-  steeringPosition = (steeringPosition * 7 + (sensor >> 1) * 3) / 10;
   
-  // Define calibration constant for readability
-  const int16_t CENTER_POSITION = 6805;
+  // Use filtered sensor value directly (already EMA filtered in ADC task)
+  steeringPosition = sensor >> 1;
   
-  helloSteerPosition = steeringPosition - (CENTER_POSITION - 5);  // 6800
+  helloSteerPosition = steeringPosition - (WAS_CENTER_POSITION - 5);
   
-  // convert position to steer angle. 32 counts per degree of steer pot position
-  // in my case
-  //   ***** make sure that negative steer angle makes a left turn and positive
-  //   value is a right turn *****
+  // Convert position to steer angle
+  // Sensor is pre-filtered, just apply offset and scaling
+  int16_t offsetPosition;
   if (steerConfig.InvertWAS) {
-    steeringPosition = (steeringPosition - CENTER_POSITION - steerSettings.wasOffset);
-    steerAngleActual =
-        (float)(steeringPosition) / -steerSettings.steerSensorCounts;
+    offsetPosition = steeringPosition - WAS_CENTER_POSITION - steerSettings.wasOffset;
+    steerAngleActual = (float)offsetPosition / -(float)steerSettings.steerSensorCounts;
   } else {
-    steeringPosition = (steeringPosition - CENTER_POSITION + steerSettings.wasOffset);
-    steerAngleActual =
-        (float)(steeringPosition) / steerSettings.steerSensorCounts;
+    offsetPosition = steeringPosition - WAS_CENTER_POSITION + steerSettings.wasOffset;
+    steerAngleActual = (float)offsetPosition / (float)steerSettings.steerSensorCounts;
   }
 
   // Ackerman fix - only apply when steering left (negative angle)
-  if (steerAngleActual < 0)
-    steerAngleActual = (steerAngleActual * steerSettings.AckermanFix);
+  if (steerAngleActual < 0) {
+    steerAngleActual = steerAngleActual * steerSettings.AckermanFix;
+  }
 }
 
 /**

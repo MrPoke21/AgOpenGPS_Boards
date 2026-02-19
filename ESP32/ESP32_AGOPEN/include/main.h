@@ -28,8 +28,8 @@
 //Cytron PWM, Right PWM for IBT2
 #define PWM2_RPWM 14
 
-#define PWM_FREQ  1000
-#define PWM_RESOLUTION  8
+#define PWM_FREQ  20000
+#define PWM_RESOLUTION  10
 #define PWM_CHANNEL_LPWM  0
 #define PWM_CHANNEL_RPWM  1
 
@@ -52,19 +52,18 @@ void printLnByteArray(byte* data, uint8_t datalen);
 extern bool useBNO08x;
 
 extern CyclicTimer t_imuTask;
+extern CyclicTimer t_inputSwitches;
 extern CyclicTimer t_autosteerLoop;
 
 extern uint8_t aog2Count;
 extern float sensorReading;
-extern float sensorSample;
 
 
 //EEPROM
 extern int16_t EEread;
 
 //Relays
-extern bool isRelayActiveHigh;
-extern uint8_t relay, relayHi, uTurn;
+extern uint8_t relay, relayHi;
 extern uint8_t tram;
 
 //Switches
@@ -75,11 +74,11 @@ extern uint8_t guidanceStatus;
 extern uint8_t prevGuidanceStatus;
 extern bool guidanceStatusChanged;
 extern bool steerEnable;
+extern bool prevSteerEnableCondition;  // Track previous steer enable state
 
 //speed sent as *10
 extern float gpsSpeed;
 extern bool GGA_Available;  //Do we have GGA on correct port?
-extern bool Autosteer_running;
 
 extern const bool invertRoll; //Used for IMU with dual antenna
 
@@ -97,11 +96,6 @@ extern float steerAngleSetPoint;  //the desired angle from AgOpen
 //float steerAngleError = 0;     //setpoint - actual
 extern int16_t helloSteerPosition;
 extern uint8_t pwmDisplay;
-extern bool motorON;
-//Steer switch button  ***********************************************************************************************************
-extern uint8_t currentState, reading, previous;
-
-extern unsigned long lastPacket;
 
 //Variables for settings
 struct Storage {

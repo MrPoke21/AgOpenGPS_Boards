@@ -190,11 +190,13 @@ void parsePacket(byte* packet, int size) {
           //Bit 8,9    set point steer angle * 100 is sent
           steerAngleSetPoint = ((float)(packet[8] | ((int8_t)packet[9]) << 8)) * 0.01;  //high low bytes
 
-          if ((bitRead(guidanceStatus, 0) == 0) || (gpsSpeed < 0.1) || (steerSwitch == 1)) {
-            steerEnable = false;  //turn off steering motor
-          } else                  //valid conditions to turn on autosteer
-          {
-            steerEnable = true;   //reset watchdog
+          byte guidanceBit = bitRead(guidanceStatus, 0);
+          
+          steerEnable = (guidanceBit != 0);
+          
+          // Only update steerEnable if the condition actually changed (prevent rapid toggling)
+          if (steerEnable != prevSteerEnableCondition) {
+            prevSteerEnableCondition = steerEnable;
           }
           
           //Bit 10 Tram
@@ -311,6 +313,8 @@ void parsePacket(byte* packet, int size) {
           helloFromAutoSteer[9] = switchByte;
 
           sendData(helloFromAutoSteer, sizeof(helloFromAutoSteer));
+          
+          // Send IMU hello immediately after (no delay)
           if (useBNO08x) {
             sendData(helloFromIMU, sizeof(helloFromIMU));
           }

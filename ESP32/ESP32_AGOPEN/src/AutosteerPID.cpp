@@ -5,6 +5,33 @@
 #define DANFOSS_PWM_MIN -250
 #define DANFOSS_PWM_MAX 250
 
+static bool motorWasEnabled = false;
+
+// Global PWM variables (defined here, declared as extern in header)
+int16_t pwmDrive = 0;
+float pValue = 0, errorAbs = 0, highLowPerDeg = 0;
+
+/**
+ * Motor State Control - manages motor enable/disable state transitions
+ * Prevents repeated on/off cycles and ensures clean state management
+ */
+void motorStateControl(void) {
+  if (motorWasEnabled && !steerEnable) {
+    // Transition: Motor was ON, now should be OFF
+    pwmDisplay = 0;  // Clear PWM display value
+    digitalWrite(PWM_ENABLE, LOW);
+    ledcWrite(PWM_CHANNEL_LPWM, 0);
+    ledcWrite(PWM_CHANNEL_RPWM, 0);
+    motorWasEnabled = false;
+    Serial.println("[MOTOR] Motor safely shut down");
+  } else if (steerEnable && !motorWasEnabled) {
+    // Transition: Motor should be ON
+    motorWasEnabled = true;
+    digitalWrite(PWM_ENABLE, HIGH);
+    Serial.println("[MOTOR] Motor enabled");
+  }
+}
+
 void calcSteeringPID(void) {
   //Proportional only
   float steerAngleError = steerAngleActual - steerAngleSetPoint;
@@ -60,40 +87,34 @@ void calcSteeringPID(void) {
 //#########################################################################################
 
 void motorDrive(void) {
-  if (steerEnable) {
-    // Used with Cytron MD30C Driver
-    // Steering Motor
-    // Dir + PWM Signal
-    
-    if (!motorON){
-      analogWrite(PWM_ENABLE, 255);
-      motorON = true;
-    }
-    if (steerConfig.CytronDriver) {
-      // Cytron MD30C Driver Dir + PWM Signal
-      if (pwmDrive >= 0) {
-        ledcWrite(PWM_CHANNEL_LPWM, 255);
-      } else {
-        ledcWrite(PWM_CHANNEL_LPWM, 0);
-      }
-      //write out the 0 to 255 value
-      ledcWrite(PWM_CHANNEL_RPWM, abs(pwmDrive));
+  // Motor on/off is handled by motorStateControl()
+  // This function only handles PWM direction and speed
+  // Scale 0-255 PWM to 0-1020 for 10-bit resolution (multiply by 4)
+  
+  if (!steerEnable) {
+    return;  // No PWM output when steering disabled
+  }
+  
+  pwmDisplay = abs(pwmDrive); // Update display variable with absolute PWM value
+  int16_t scaledPWM = pwmDrive * 4;  // Scale from 8-bit to 10-bit range
+  
+  if (steerConfig.CytronDriver) {
+    // Cytron MD30C Driver Dir + PWM Signal
+    if (pwmDrive >= 0) {
+      ledcWrite(PWM_CHANNEL_LPWM, 1023);  // Full scale for 10-bit
     } else {
-
-      if (pwmDrive > 0) {
-        ledcWrite(PWM_CHANNEL_RPWM, 0);
-        ledcWrite(PWM_CHANNEL_LPWM, pwmDrive);
-      } else {
-        ledcWrite(PWM_CHANNEL_LPWM, 0);
-        ledcWrite(PWM_CHANNEL_RPWM, abs(pwmDrive));
-      }
-    }
-  } else {
-    if (motorON) {
-      analogWrite(PWM_ENABLE, 0);
       ledcWrite(PWM_CHANNEL_LPWM, 0);
+    }
+    //write out the scaled PWM value
+    ledcWrite(PWM_CHANNEL_RPWM, abs(scaledPWM));
+  } else {
+    // Standard dual direction control
+    if (pwmDrive > 0) {
       ledcWrite(PWM_CHANNEL_RPWM, 0);
-      motorON = false;
+      ledcWrite(PWM_CHANNEL_LPWM, scaledPWM);
+    } else {
+      ledcWrite(PWM_CHANNEL_LPWM, 0);
+      ledcWrite(PWM_CHANNEL_RPWM, abs(scaledPWM));
     }
   }
 }

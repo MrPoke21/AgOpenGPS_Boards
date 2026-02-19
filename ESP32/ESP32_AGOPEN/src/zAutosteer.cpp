@@ -2,60 +2,64 @@
 #include <main.h>
 #include <zAutosteer.h>
 #include <zInput.h>
+#include <zUDP.h>
+#include <AutosteerPID.h>
+
+void readInputSwitches() {
+  // Button toggle state variables (static = memory persists between calls)
+  static uint8_t currentState = 1;
+  static uint8_t reading = 0;
+  static uint8_t previous = 0;
+  static unsigned long lastDebugTime = 0;
+
+  // read all the switches
+  workSwitch = !gpio_get_level((gpio_num_t)WORKSW_PIN);
+
+  if (steerConfig.SteerSwitch == 1) // steer switch on - off
+  {
+    steerSwitch = gpio_get_level((gpio_num_t)STEERSW_PIN); // read auto steer enable switch (inverted: 1 when shorted to GND)
+  } else if (steerConfig.SteerButton == 1) // steer Button momentary
+  {
+    // Detect steerEnable state change from external sources
+    static uint8_t lastSteerEnable = 0;
+    
+    reading = !gpio_get_level((gpio_num_t)STEERSW_PIN);  // inverted: 1 when button shorted to GND
+    
+    if (steerEnable != lastSteerEnable) {
+      steerSwitch = !steerEnable;  // Sync toggle state with external changes
+      currentState = steerSwitch;  // Update toggle state to match switch
+      lastSteerEnable = steerEnable;
+    }
+    
+    // Toggle on rising edge (LOW to HIGH transition) - now detects GND release
+    if (reading == HIGH && previous == LOW) {
+      currentState = currentState ? 0 : 1;  // Toggle state
+      steerSwitch = currentState;
+    }
+    previous = reading;
+  } else // No steer switch and no steer button - keep steerSwitch at default (1)
+  {
+    // When no physical switch is configured, steerSwitch remains 1
+    // The guidance status is handled separately via guidanceBit in packet processing
+    // This prevents steerSwitch from being affected by guidance packets
+  }
+  switchByte = 0;
+  switchByte |= (steerSwitch << 1); // put steerswitch status in bit 1
+                                    // position
+  switchByte |= workSwitch;
+}
 
 void autosteerLoop() {
+  
+  inputHandler();
 
-  if (Autosteer_running) {
-    // read all the switches
-    workSwitch = digitalRead(WORKSW_PIN); // read work switch
-
-    if (steerConfig.SteerSwitch == 1) // steer switch on - off
-    {
-      steerSwitch = digitalRead(
-          STEERSW_PIN); // read auto steer enable switch: open = On, closed = Off
-    } else if (steerConfig.SteerButton == 1) // steer Button momentary
-    {
-      reading = digitalRead(STEERSW_PIN);
-      // Toggle on rising edge (LOW to HIGH transition)
-      if (reading == HIGH && previous == LOW) {
-        currentState = currentState ? 0 : 1;  // Toggle state
-        steerSwitch = currentState;
-      }
-      previous = reading;
-    } else // No steer switch and no steer button
-    {
-      // So set the correct value. When guidanceStatus = 1,
-      // it should be on because the button is pressed in the GUI
-      // But the guidancestatus should have set it off first
-      if (guidanceStatusChanged && guidanceStatus == 1 && steerSwitch == 1 &&
-          previous == 0) {
-        steerSwitch = 0;
-        previous = 1;
-      }
-
-      // This will set steerswitch off and make the above check wait until the
-      // guidanceStatus has gone to 0
-      if (guidanceStatusChanged && guidanceStatus == 0 && steerSwitch == 0 &&
-          previous == 1) {
-        steerSwitch = 1;
-        previous = 0;
-      }
-    }
-
-    inputHandler();
-
-    switchByte = 0;
-    switchByte |= (steerSwitch << 1); // put steerswitch status in bit 1
-                                      // position
-    switchByte |= workSwitch;
-    calcSteerAngle();
-    // Only calculate PID when steering is enabled to save resources
-    if (steerEnable) {
-      calcSteeringPID();
-    }
-    // end of timed loop
+  calcSteerAngle();
+  
+  // Handle motor on/off state safely (only transitions once)
+  motorStateControl();
+  
+  // Only calculate PID when steering is enabled to save resources
+  if (steerEnable) {
+    calcSteeringPID();
   }
-
-  // Speed pulse
-
-} // end of main loop
+}

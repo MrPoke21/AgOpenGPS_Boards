@@ -1,4 +1,5 @@
 #include "zUDP.h"
+#include "zSerial.h"
 #include "Configuration.h"
 #include <esp_wifi.h>
 
@@ -108,10 +109,10 @@ bool initWiFi() {
 bool initUDP() {
   DEBUG_PRINTLN("[UDP] Initializing UDP socket...");
   
-  // Create queue for async UDP sending (10 packets max)
-  udpSendQueue = xQueueCreate(10, sizeof(UDPPacket));
+  // Create queue for async UDP sending (30 packets max for better buffering)
+  udpSendQueue = xQueueCreate(30, sizeof(UDPPacket));
   if (udpSendQueue == NULL) {
-    DEBUG_PRINTLN("[UDP] Failed to create send queue!");
+    DEBUG_PRINTLN("[UDP] Failed to create UDP send queue!");
     return false;
   }
   
@@ -184,7 +185,7 @@ bool sendUDP(const uint8_t* data, uint16_t length) {
   return xQueueSend(udpSendQueue, &packet, 0) == pdTRUE;
 }
 
-// ===== RECEIVE UDP DATA =====
+// ===== RECEIVE UDP DATA ======
 uint16_t receiveUDP(uint8_t* buffer, uint16_t maxLen) {
   if (!udpDataAvailable || udpRxLen == 0) {
     return 0;
@@ -266,7 +267,11 @@ void udpSendTask(void* params) {
     if (xQueueReceive(udpSendQueue, &packet, pdMS_TO_TICKS(1000))) {
       // Only send if we have a connected client
       if (udpRemotePort != 0 && wifiStatus != WIFI_ERROR) {
-        udp.writeTo(packet.data, packet.length, udpRemoteIP, 9999);
+        bool success = udp.writeTo(packet.data, packet.length, udpRemoteIP, 9999);
+        if (!success) {
+          DEBUG_PRINTF("[UDP] ERROR: Failed to send %d bytes to %s:%d\n", 
+                       packet.length, udpRemoteIP.toString().c_str(), udpRemotePort);
+        }
       }
     }
   }

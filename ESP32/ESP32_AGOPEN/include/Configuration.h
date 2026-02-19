@@ -106,3 +106,10 @@
 
 /** Angle range (degrees) for low-to-high PWM transition curve */
 #define LOW_HIGH_DEGREES 5.0f
+
+// ==================== STEERING SENSOR CALIBRATION ====================
+/** Steering wheel angle sensor (WAS) center position ADC value */
+#define WAS_CENTER_POSITION 6805
+
+/** Steering sensor scaling reference point (usually CENTER_POSITION - 5) */
+#define WAS_HELLO_POSITION 6800

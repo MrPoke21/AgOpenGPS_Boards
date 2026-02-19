@@ -3,10 +3,11 @@
 
 #include <Arduino.h>
 #include "main.h"
-//pwm variables
-int16_t pwmDrive = 0;
-float pValue = 0, errorAbs = 0, highLowPerDeg = 0;
+//pwm variables - declared as extern (defined in AutosteerPID.cpp)
+extern int16_t pwmDrive;
+extern float pValue, errorAbs, highLowPerDeg;
 
+void motorStateControl();
 void motorDrive();
 void calcSteeringPID(void);
 

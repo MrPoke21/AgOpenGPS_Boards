@@ -35,7 +35,8 @@ bool initWiFi();
  */
 bool initUDP();
 
-/*** Send data via UDP (non-blocking queue-based)
+/**
+ * Send data via UDP (non-blocking queue-based)
  * @param data: pointer to data buffer
  * @param length: data length
  * @return true if queued successfully
